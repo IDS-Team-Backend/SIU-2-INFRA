@@ -1,0 +1,13 @@
+# Override de DESARROLLO. Se suma al base:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml --env-file .env.dev up -d
+#
+# Lo unico que dev necesita y prod NO: montar el codigo del host para hot-reload.
+# El resto del entorno (Dockerfile.dev, hosts dev, debug, restart) lo define .env.dev.
+services:
+  frontend:
+    volumes:
+      - ${PROJECT_ROOT}/SIU-2-FRONTEND/frontend:/app
+
+  api:
+    volumes:
+      - ${PROJECT_ROOT}/SIU-2-BACKEND:/app
