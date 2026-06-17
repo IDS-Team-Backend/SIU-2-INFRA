@@ -1,0 +1,97 @@
+# Stack SIU DEV (frontend + api + mysql) detras de Traefik.
+#
+#   cd dev && docker compose up -d
+#
+# Igual que prod pero: imagenes Dockerfile.dev, hosts dev.*, sin restart, y
+# monta el codigo del host en los contenedores para hot-reload. Es su propio
+# proyecto Docker (siu-dev) con su propia MySQL; comparte solo la red de Traefik.
+# Autocontenido: levanta con .env solo, sin -f ni --env-file.
+
+name: siu-dev
+
+services:
+
+  frontend:
+    container_name: frontend-siu-dev
+    restart: "no"
+    build:
+      context: ../../SIU-2-FRONTEND/frontend/
+      dockerfile: ./Dockerfile.dev
+    env_file:
+      - .env
+    environment:
+      - SECRET_KEY=${FRONTEND_SECRET_KEY}
+    expose:
+      - "5000"
+    volumes:
+      - ../../SIU-2-FRONTEND/frontend:/app
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=net-nammu"
+      - "traefik.http.routers.frontend-siu-dev.rule=Host(`dev.siu.vargastomas.com`) && PathPrefix(`/`)"
+      - "traefik.http.routers.frontend-siu-dev.entrypoints=websecure"
+      - "traefik.http.routers.frontend-siu-dev.tls=true"
+      - "traefik.http.routers.frontend-siu-dev.tls.certresolver=myresolver"
+      - "traefik.http.routers.frontend-siu-dev.priority=10"
+      - "traefik.http.routers.frontend-siu-dev.service=frontend-siu-dev"
+      - "traefik.http.services.frontend-siu-dev.loadbalancer.server.port=5000"
+    networks:
+      - traefik
+
+  api:
+    container_name: api-siu-dev
+    restart: "no"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    build:
+      context: ../../SIU-2-BACKEND/
+      dockerfile: ./Dockerfile.dev
+    env_file:
+      - .env
+    expose:
+      - "5000"
+    volumes:
+      - ../../SIU-2-BACKEND:/app
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=net-nammu"
+      - "traefik.http.routers.api-siu-dev.rule=Host(`dev.siu.api.vargastomas.com`) && PathPrefix(`/`)"
+      - "traefik.http.routers.api-siu-dev.entrypoints=websecure"
+      - "traefik.http.routers.api-siu-dev.tls=true"
+      - "traefik.http.routers.api-siu-dev.tls.certresolver=myresolver"
+      - "traefik.http.routers.api-siu-dev.priority=10"
+      - "traefik.http.routers.api-siu-dev.service=api-siu-dev"
+      - "traefik.http.services.api-siu-dev.loadbalancer.server.port=5000"
+    networks:
+      - traefik
+
+  mysql:
+    container_name: mysql-siu-dev
+    image: mysql:8.0
+    restart: "no"
+    env_file:
+      - .env
+    volumes:
+      - mysql-siu-data:/var/lib/mysql
+      - ../../mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    expose:
+      - "3306"
+    networks:
+      - traefik
+
+
+volumes:
+  mysql-siu-data:
+
+networks:
+  # Red externa de Traefik (compartida con prod).
+  traefik:
+    external: true
+    name: net-nammu
